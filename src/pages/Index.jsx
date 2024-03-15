@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import { Box, Button, HStack, Text, Select, Textarea, useToast, VStack } from "@chakra-ui/react";
 import { FaComments } from "react-icons/fa";
+import { WebSocketContext } from "../main.jsx";
 
 const API_BASE_URL = "https://backengine-bar8.fly.dev";
 
@@ -14,10 +15,31 @@ const Index = () => {
   const toast = useToast();
 
   useEffect(() => {
-    // Simulating fetching active users
-    const users = ["John", "Jane", "Alice", "Bob"];
-    setActiveUsers(users);
-  }, []);
+    if (ws) {
+      ws.send(JSON.stringify({ type: "USER_ONLINE", email: email }));
+
+      ws.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+        switch (data.type) {
+          case "USER_ONLINE":
+            setActiveUsers((prevUsers) => [...prevUsers, data.email]);
+            break;
+          case "USER_OFFLINE":
+            setActiveUsers((prevUsers) => prevUsers.filter((u) => u !== data.email));
+            break;
+          case "MESSAGE_RECEIVED":
+            setChatMessages((prevMessages) => [...prevMessages, data.message]);
+            break;
+          default:
+            console.log("Unrecognized message type:", data.type);
+        }
+      });
+
+      return () => {
+        ws.send(JSON.stringify({ type: "USER_OFFLINE", email: email }));
+      };
+    }
+  }, [ws]);
 
   const handleSendMessage = () => {
     if (messageInput.trim() !== "") {
@@ -26,7 +48,7 @@ const Index = () => {
         receiver: selectedUser,
         content: messageInput,
       };
-      setChatMessages([...chatMessages, newMessage]);
+      socket.emit("sendMessage", newMessage);
       setMessageInput("");
     }
   };
